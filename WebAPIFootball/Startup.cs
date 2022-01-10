@@ -11,7 +11,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
-using WebAPIFootball.Data;
 using WebAPIFootball.DataAcces;
 
 namespace WebAPIFootball
@@ -29,8 +28,6 @@ namespace WebAPIFootball
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
-            services.AddScoped<ITeamRepo, TeamRepo>();
-            services.AddScoped<IPlayerRepo, PlayerRepo>();
             services.AddDbContext<FootbalContext>();
             services.AddSwaggerGen(c =>
             {

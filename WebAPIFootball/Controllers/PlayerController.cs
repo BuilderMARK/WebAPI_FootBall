@@ -1,76 +1,71 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using WebAPIFootball.Data;
+using Microsoft.EntityFrameworkCore;
+using WebAPIFootball.DataAcces;
 using WebAPIFootball.Model;
 
 namespace WebAPIFootball.Controllers
 {
-    [ApiController]
+     [ApiController]
     [Route("[controller]")]
     public class PlayerController : ControllerBase
     {
-        private IPlayerRepo playerRepo;
+        private FootbalContext _context;
 
-        public PlayerController(IPlayerRepo playerRepo)
+        public PlayerController()
         {
-            this.playerRepo = playerRepo;
+            _context = new FootbalContext();
         }
-
-        [HttpGet]
-        public async Task<ActionResult<IList<Player>>> GetPlayver()
-        {
-            try
-            {
-                IList<Player> players = await playerRepo.ReadAllPlayers();
-                return Ok(players);
-
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                return StatusCode(500, e.Message);
-            }
-        }
-
+        
         [HttpPost]
-        public async Task<ActionResult<Player>> AddPlayver([FromBody] Player addPlayver, string teamname)
+        [Route("{teamName}")]
+        public async Task<ActionResult<Player>> PostAddAsync([FromBody] Player player, [FromRoute] string teamName)
         {
+            Console.WriteLine($"Attempting to put {player} in Database with teamName {teamName}");
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
-
             try
             {
-                Player added = await playerRepo.AddPlayer(addPlayver, teamname);
-                Console.WriteLine("Addplayer PlayerController " + addPlayver +" TeamName PlayerController"+ teamname);
-                return Created($"/{added.PlayerID}", added);
-                
+                Team teamReturn = await _context.teams.Include(t => t.Players).FirstAsync(t => t.TeamName.Equals(teamName));
+                teamReturn.Players.Add(player);
+                Console.WriteLine($"Before Update: {player}");
+                _context.Update(teamReturn);
+                Console.WriteLine($"After Update: {player}");
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"After SaveChanges: {player}");
+                return Ok(player);
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
                 return StatusCode(500, e.Message);
             }
         }
-
+        
         [HttpDelete]
-        [Route("{Id:int}")]
-        public async Task<ActionResult> deletePlayer([FromBody] int playerId)
+        [Route("{playerId:int}")]
+        public async Task<ActionResult> RemovePlayer([FromRoute] int playerId)
         {
             try
             {
-                await playerRepo.DeletePlayer(playerId);
-                return Ok();
+                Player playerToDelete = _context.Players.FirstOrDefault(player => player.PlayerID == playerId);
+
+                if (playerToDelete != null)
+                {
+                    _context.Players.Remove(playerToDelete);
+                    await _context.SaveChangesAsync();
+                    return Ok(playerToDelete);
+                }
+                return StatusCode(500, NotFound());
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
                 return StatusCode(500, e.Message);
             }
         }
-
     }
 }

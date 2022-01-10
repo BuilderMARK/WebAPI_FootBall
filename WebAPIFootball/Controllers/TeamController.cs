@@ -1,59 +1,87 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using WebAPIFootball.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using WebAPIFootball.DataAcces;
 using WebAPIFootball.Model;
 
 namespace WebAPIFootball.Controllers
 {
-    [ApiController]
+      [ApiController]
     [Route("[controller]")]
     public class TeamController : ControllerBase
     {
-        private ITeamRepo teamRepo;
+        private FootbalContext _context;
 
-        public TeamController(ITeamRepo teamRepo)
+        public TeamController()
         {
-            this.teamRepo = teamRepo;
+            _context = new FootbalContext();
         }
-
-        [HttpGet]
-        public async Task<ActionResult<IList<Team>>> GetTeams([FromQuery] string TeamName, [FromQuery] int Ranting)
+        
+        [HttpPost]
+        public async Task<ActionResult<Team>> PostAddAsync([FromBody] Team team)
         {
+            Console.WriteLine($"Attempting to put {team} in Database");
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
             try
             {
-                IList<Team> validInput = await teamRepo.ReadAllTeams(Ranting, TeamName);
-                return Ok(validInput);
+                EntityEntry<Team> returnTeam = await _context.teams.AddAsync(team);
+                await _context.SaveChangesAsync();
+                return Ok(returnTeam.Entity);
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                return StatusCode(500, e.Message);
+            }
+        }
+        
+        
+        [HttpGet]
+        public async Task<ActionResult<IList<Team>>> GetAsync([FromQuery] int rank, [FromQuery] string name)
+        {
+            IList<Team> teams;
+            try
+            {
+                teams = await getTeam(rank, name);
+                return Ok(teams);
+            }
+            catch (Exception e)
+            {
                 return StatusCode(500, e.Message);
             }
         }
 
-
-
-
-        [HttpPost]
-                public async Task<ActionResult<Team>> AddTeam([FromBody] Team addTeam)
-                {
-                    if (!ModelState.IsValid)
-                    {
-                        return BadRequest(ModelState);
-                    }
-        
-                    try
-                    {
-                        Team added = await teamRepo.AddTeam(addTeam);
-                        return Created($"/{added.TeamName}", added);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e);
-                        return StatusCode(500, e.Message);
-                    }
-                }
+        private async Task<IList<Team>> getTeam(int rank, string name)
+        {
+            IList<Team> teams;
+            
+            if(rank == 0 && name == null)
+            {
+                teams = await _context.teams.Include(t=>t.Players).ToListAsync();
             }
+            else if (rank == 0)
+            {
+                teams = await _context.teams.Include(t=>t.Players).Where(t=>t.TeamName.Contains(name)).ToListAsync();
+            }
+            else if (name == null)
+            {
+                teams = await _context.teams.Include(t=>t.Players).Where(t=>t.Ranking <= rank).ToListAsync();
+            }
+            else
+            {
+                teams = await _context.teams.Include(t=>t.Players).Where(t=>t.Ranking <= rank).Where(t=>t.TeamName.Contains(name)).ToListAsync();
+            }
+
+            return teams;
+        }
+        
+    }
     }
